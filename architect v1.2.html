@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategic Pitch Architect</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Marked for Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+        }
+        .markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #f8fafc; }
+        .markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.75rem; margin-top: 1.5rem; color: #f1f5f9; }
+        .markdown-body h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: #e2e8f0; }
+        .markdown-body p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-body li { margin-bottom: 0.25rem; }
+        .markdown-body strong { color: #38bdf8; font-weight: 600; }
+        .markdown-body blockquote { border-left: 4px solid #3b82f6; padding-left: 1rem; font-style: italic; color: #94a3b8; }
+        .markdown-body code { background-color: #1e293b; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.9em; color: #fb7185; }
+        .markdown-body pre { background-color: #1e293b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
+        .markdown-body pre code { background-color: transparent; padding: 0; color: #e2e8f0; }
+        
+        /* Tables in Markdown */
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .markdown-body th, .markdown-body td { border: 1px solid #334155; padding: 0.5rem; text-align: left; }
+        .markdown-body th { background-color: #1e293b; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            40% { color: white; text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            60% { text-shadow: .25em 0 0 white, .5em 0 0 rgba(0,0,0,0);}
+            80%, 100% { text-shadow: .25em 0 0 white, .5em 0 0 white;}
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- SVGs as Components ---
+        const Icon = ({ name, size = 20, className }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // --- Helper: Gemini API ---
+        const callGemini = async (apiKey, prompt, systemInstruction = "") => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] },
+                // Explicitly increased token limit for long-form content
+                generationConfig: {
+                    maxOutputTokens: 65000
+                }
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || 'API Error');
+                }
+
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                throw error;
+            }
+        };
+
+        // --- Steps Configuration ---
+        const STEPS = [
+            { id: 1, title: 'Clarify Pitch', icon: 'message-square' },
+            { id: 2, title: 'Business Model', icon: 'briefcase' },
+            { id: 3, title: 'Ecosystem', icon: 'share-2' },
+            { id: 4, title: 'Persona Sim', icon: 'users' },
+            { id: 5, title: 'Gap Analysis', icon: 'hammer' },
+            { id: 6, title: 'Market Sim', icon: 'trending-up' },
+            { id: 7, title: 'Deck Prompts', icon: 'presentation' },
+            { id: 8, title: 'Portal Prompt', icon: 'code' },
+        ];
+
+        // --- Main App Component ---
+        const App = () => {
+            const [apiKey, setApiKey] = useState('');
+            const [hasKey, setHasKey] = useState(false);
+            const [currentStep, setCurrentStep] = useState(1);
+            const [loading, setLoading] = useState(false);
+            
+            // Global State for the Project
+            const [projectData, setProjectData] = useState({
+                rawPitch: '',
+                refinedPitch: '', 
+                chatHistory: [], 
+                businessModel: '', 
+                ecosystem: '', 
+                personas: '', 
+                gapAnalysis: '', 
+                marketParams: null, 
+                deckPrompts: '', 
+                portalPrompt: '' 
+            });
+
+            // --- Components for Each Step ---
+
+            // Step 1: Clarify Pitch
+            const Step1 = () => {
+                const [input, setInput] = useState('');
+                
+                const handleSend = async () => {
+                    if (!input.trim()) return;
+                    setLoading(true);
+                    
+                    const newHistory = [...projectData.chatHistory, { role: 'user', content: input }];
+                    setProjectData(prev => ({ ...prev, chatHistory: newHistory }));
+                    setInput('');
+
+                    try {
+                        const context = newHistory.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+                        const prompt = `Based on the conversation below, ask clarifying questions to unpack the pitch, or if sufficient, summarize the refined pitch clearly.\n\n${context}`;
+                        const system = "You are an expert Product Strategist. Your goal is to help the user clarify their idea, and/or how they identify their problem. Ask probing questions about the problem, solution, and target audience. If the user provides a detailed pitch, summarize it structurally.";
+                        
+                        const response = await callGemini(apiKey, prompt, system);
+                        
+                        setProjectData(prev => ({
+                            ...prev, 
+                            chatHistory: [...newHistory, { role: 'assistant', content: response }],
+                            refinedPitch: response 
+                        }));
+                    } catch (e) {
+                        alert(e.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                return (
+                    <div className="flex flex-col h-full space-y-4">
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                            {projectData.chatHistory.length === 0 && (
+                                <div className="text-gray-400 text-center italic mt-10">
+                                    Start by describing your rough idea. I will help you unpack it.
+                                </div>
+                            )}
+                            {projectData.chatHistory.map((msg, idx) => (
+                                <div key={idx} className={`p-4 rounded-lg ${msg.role === 'user' ? 'bg-blue-900/40 ml-12' : 'bg-slate-800 mr-12'}`}>
+                                    <div className="font-bold text-xs text-gray-400 mb-1 uppercase">{msg.role}</div>
+                                    <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }} />
+                                </div>
+                            ))}
+                            {loading && <div className="text-blue-400 font-bold loading-dots">Thinking</div>}
+                        </div>
+                        <div className="flex gap-2">
+                            <textarea 
+                                className="flex-1 bg-slate-800 border border-slate-700 rounded p-3 focus:outline-none focus:border-blue-500 resize-none h-24"
+                                placeholder="Describe your solution..."
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                            />
+                            <button onClick={handleSend} disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded font-semibold transition-colors disabled:opacity-50">
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 2: Business Model
+            const Step2 = () => {
+                const generateAnalysis = async () => {
+                    setLoading(true);
+                    const prompt = `Analyze this pitch: "${projectData.refinedPitch}". 
+                    1. Critique it mercilessly. Is it realistic?
+                    2. Simulate 3 different business/revenue models suitable for this.
+                    3. Recommend the best model with a rationale.`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Chief Revenue Officer. Focus on monetization, viability, and business logic. If about an internal use-case and money is directly at play, adapt by looking similarly at value stream and resource allocation.");
+                        setProjectData(prev => ({ ...prev, businessModel: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="h-full flex flex-col">
+                        {!projectData.businessModel && (
+                            <button onClick={generateAnalysis} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Analyzing...' : 'Generate Business Models'} <Icon name="zap" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.businessModel ? (
+                                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.businessModel) }} />
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Click generate to analyze business models based on your pitch.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 3: Ecosystem
+            const Step3 = () => {
+                const generateEcosystem = async () => {
+                    setLoading(true);
+                    const prompt = `Based on the pitch and business/operational/usage model(s):
+                    1. Identify the Ecosystem: Clients, Influencers, follower or foe (of the intended models and subsequent changes), Deciders (who signs checks), Users (who uses it / are there power users?), Partners.
+                    2. Devise a detailed engagement strategic plan for each group.
+                    
+                    Pitch: ${projectData.refinedPitch}
+                    Biz Model: ${projectData.businessModel}`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are an Ecosystem Architect. Structure relationships and incentives/demotivators.");
+                        setProjectData(prev => ({ ...prev, ecosystem: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="h-full flex flex-col">
+                        {!projectData.ecosystem && (
+                            <button onClick={generateEcosystem} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Mapping...' : 'Map Ecosystem'} <Icon name="share-2" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.ecosystem ? (
+                                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.ecosystem) }} />
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Map out the stakeholders involved in your solution.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 4: Persona Sim
+            const Step4 = () => {
+                const generatePersonas = async () => {
+                    setLoading(true);
+                    const prompt = `Create  distinct personas (about 3 or 4; more or less if highly critical but never less than 2) highly relevant to the subject (e.g., The Skeptic CFO, The Overwhelmed User, The Enthusiastic Champion, The innovation-focus operations leader, the practical program manager, etc.). 
+                    Simulate a dialogue where they critique the solution described below. 
+                    Validate the business model. Adjust the strategy based on their feedback.
+                    
+                    Context: ${projectData.ecosystem}`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Researcher in the psychology of peiole's drivers in work contexts and Creative Writer. Roleplay realistic customer voices.");
+                        setProjectData(prev => ({ ...prev, personas: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="h-full flex flex-col">
+                        {!projectData.personas && (
+                            <button onClick={generatePersonas} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Simulating...' : 'Simulate Personas'} <Icon name="users" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.personas ? (
+                                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.personas) }} />
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Simulate stakeholder reactions to validate your pitch.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 5: Gap Analysis
+            const Step5 = () => {
+                const generateGap = async () => {
+                    setLoading(true);
+                    const prompt = `Based on the persona validation:
+                    1. Is the current pitch sufficient to monetize? If not, list "Must Haves".
+                    2. Propose a realistic execution plan.
+                    3. Generate a clean, precise technical prompt that a Coder Agent could run to build the missing functionalities.
+                    
+                    Validation: ${projectData.personas}`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Product Innivation Strategist and Technical Architect. Bridge the gap between idea and execution with pragmatic steps and a solid final resolution.");
+                        setProjectData(prev => ({ ...prev, gapAnalysis: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="h-full flex flex-col">
+                        {!projectData.gapAnalysis && (
+                            <button onClick={generateGap} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Analyzing...' : 'Run Gap Analysis'} <Icon name="hammer" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.gapAnalysis ? (
+                                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.gapAnalysis) }} />
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Identify gaps and generate technical specs.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 6: Market Monte Carlo Simulation
+            const Step6 = () => {
+                const [simResults, setSimResults] = useState(null);
+
+                const getParams = async () => {
+                    setLoading(true);
+                    // Updated prompt to ask for Rationale + JSON
+                    const prompt = `Based on the validated business model: ${projectData.businessModel}.
+                    Provide a JSON object ONLY with no markdown formatting.
+                    The JSON must contain these fields:
+                    - avgPrice: estimated monthly price per user (number)
+                    - priceStdDev: standard deviation of price (number)
+                    - initialUsers: starting user count (optimistic guess) (number)
+                    - growthRateMean: monthly growth rate (decimal, e.g. 0.05 for 5%) (number)
+                    - growthRateStdDev: standard deviation of growth rate (number)
+                    - churnRateMean: monthly churn rate (decimal) (number)
+                    - churnRateStdDev: standard deviation of churn (number)
+                    - months: 24 (number)
+                    - rationale: A detailed string paragraph explaining why these numbers were chosen, justifying the price point, growth assumptions, and churn risks based on the industry standard for this type of solution. (string)
+                    `;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Data Scientist. Output only valid JSON. Include rationale.");
+                        // Clean response just in case
+                        const cleanJson = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                        const params = JSON.parse(cleanJson);
+                        setProjectData(prev => ({ ...prev, marketParams: params }));
+                        runSimulation(params);
+                    } catch (e) { alert("Error parsing simulation parameters: " + e.message); } 
+                    finally { setLoading(false); }
+                };
+
+                const runSimulation = (params) => {
+                    const iterations = 1000;
+                    const results = []; // Array of arrays (each inner array is revenue over months)
+
+                    for(let i=0; i<iterations; i++) {
+                        let users = params.initialUsers;
+                        let monthlyRevenue = [];
+                        let currentPrice = params.avgPrice + (randn_bm() * params.priceStdDev); // Fixed price per simulation run
+
+                        for(let m=0; m<params.months; m++) {
+                            // Monthly variations
+                            let growth = params.growthRateMean + (randn_bm() * params.growthRateStdDev);
+                            let churn = params.churnRateMean + (randn_bm() * params.churnRateStdDev);
+                            
+                            // Clamp values
+                            if(churn < 0) churn = 0;
+                            if(churn > 1) churn = 1;
+
+                            users = users * (1 + growth - churn);
+                            if(users < 0) users = 0;
+
+                            monthlyRevenue.push(users * currentPrice);
+                        }
+                        results.push(monthlyRevenue);
+                    }
+
+                    // Calculate P10, P50, P90
+                    const p10 = [], p50 = [], p90 = [];
+                    for(let m=0; m<params.months; m++) {
+                        const monthValues = results.map(r => r[m]).sort((a,b) => a-b);
+                        p10.push(monthValues[Math.floor(iterations * 0.1)]);
+                        p50.push(monthValues[Math.floor(iterations * 0.5)]);
+                        p90.push(monthValues[Math.floor(iterations * 0.9)]);
+                    }
+                    
+                    setSimResults({ p10, p50, p90, months: params.months });
+                };
+
+                // Standard Normal variate using Box-Muller transform.
+                function randn_bm() {
+                    let u = 0, v = 0;
+                    while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+                    while(v === 0) v = Math.random();
+                    return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+                }
+
+                // Simple SVG Chart
+                const Chart = ({ data }) => {
+                    if(!data) return null;
+                    const maxVal = Math.max(...data.p90);
+                    const height = 300;
+                    const width = 600;
+                    const padding = 40;
+                    
+                    const getPoints = (arr, color) => {
+                        return arr.map((val, idx) => {
+                            const x = (idx / (data.months - 1)) * (width - padding * 2) + padding;
+                            const y = height - ((val / maxVal) * (height - padding * 2)) - padding;
+                            return `${x},${y}`;
+                        }).join(' ');
+                    };
+
+                    return (
+                        <div className="w-full flex justify-center mt-6">
+                            <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="bg-slate-800 rounded-lg shadow-inner">
+                                {/* Grid Lines */}
+                                <line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#475569" strokeWidth="2"/>
+                                <line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#475569" strokeWidth="2"/>
+                                
+                                {/* Areas/Lines */}
+                                <polyline fill="none" stroke="#34d399" strokeWidth="3" points={getPoints(data.p90, '')} /> {/* Optimistic */}
+                                <polyline fill="none" stroke="#60a5fa" strokeWidth="3" points={getPoints(data.p50, '')} /> {/* Median */}
+                                <polyline fill="none" stroke="#f87171" strokeWidth="3" points={getPoints(data.p10, '')} /> {/* Pessimistic */}
+
+                                {/* Legend text placed roughly */}
+                                <text x={width - 150} y={padding + 20} fill="#34d399" fontSize="12" fontWeight="bold">P90 (Optimistic)</text>
+                                <text x={width - 150} y={padding + 40} fill="#60a5fa" fontSize="12" fontWeight="bold">P50 (Median)</text>
+                                <text x={width - 150} y={padding + 60} fill="#f87171" fontSize="12" fontWeight="bold">P10 (Conservative)</text>
+                            </svg>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="h-full flex flex-col">
+                         {!projectData.marketParams && (
+                            <button onClick={getParams} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Calculating...' : 'Run Monte Carlo Sim'} <Icon name="calculator" size={16}/>
+                            </button>
+                        )}
+                        
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.marketParams && (
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4 text-blue-400">Monte Carlo Simulation Results</h3>
+                                    
+                                    {/* Rationale Section */}
+                                    <div className="bg-blue-900/30 border border-blue-800 p-4 rounded-lg mb-6">
+                                        <h4 className="font-bold text-blue-300 mb-2 flex items-center gap-2"><Icon name="info" size={16}/> Model Rationale</h4>
+                                        <p className="text-sm text-slate-300 leading-relaxed">
+                                            {projectData.marketParams.rationale}
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                            <div className="text-gray-400 text-xs">Avg Price</div>
+                                            <div className="text-lg font-mono">${projectData.marketParams.avgPrice}</div>
+                                        </div>
+                                        <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                            <div className="text-gray-400 text-xs">Initial Users</div>
+                                            <div className="text-lg font-mono">{projectData.marketParams.initialUsers}</div>
+                                        </div>
+                                        <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                            <div className="text-gray-400 text-xs">Growth Rate</div>
+                                            <div className="text-lg font-mono">{(projectData.marketParams.growthRateMean * 100).toFixed(1)}%</div>
+                                        </div>
+                                        <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                            <div className="text-gray-400 text-xs">Churn Rate</div>
+                                            <div className="text-lg font-mono">{(projectData.marketParams.churnRateMean * 100).toFixed(1)}%</div>
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-lg font-bold text-slate-200">24-Month Revenue Probability</h3>
+                                    <Chart data={simResults} />
+                                    
+                                    {/* Detailed Data Table */}
+                                    {simResults && (
+                                        <div className="mt-8">
+                                            <h4 className="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Projected Monthly Revenue (Key Milestones)</h4>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-sm text-left text-slate-300">
+                                                    <thead className="text-xs text-slate-400 uppercase bg-slate-800">
+                                                        <tr>
+                                                            <th className="px-6 py-3">Scenario</th>
+                                                            <th className="px-6 py-3">Month 6</th>
+                                                            <th className="px-6 py-3">Month 12</th>
+                                                            <th className="px-6 py-3">Month 18</th>
+                                                            <th className="px-6 py-3">Month 24</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr className="bg-slate-900 border-b border-slate-800">
+                                                            <td className="px-6 py-4 font-bold text-emerald-400">Optimistic (P90)</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p90[5]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p90[11]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p90[17]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p90[23]).toLocaleString()}</td>
+                                                        </tr>
+                                                        <tr className="bg-slate-900 border-b border-slate-800">
+                                                            <td className="px-6 py-4 font-bold text-blue-400">Median (P50)</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p50[5]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p50[11]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p50[17]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p50[23]).toLocaleString()}</td>
+                                                        </tr>
+                                                        <tr className="bg-slate-900">
+                                                            <td className="px-6 py-4 font-bold text-red-400">Conservative (P10)</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p10[5]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p10[11]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p10[17]).toLocaleString()}</td>
+                                                            <td className="px-6 py-4">${Math.round(simResults.p10[23]).toLocaleString()}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {!projectData.marketParams && <div className="text-gray-500 text-center mt-20">Generate parameters to visualize financial future.</div>}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 7: Content Prompts
+            const Step7 = () => {
+                const generateContent = async () => {
+                    setLoading(true);
+                    // Explicitly requesting detailed/long-form content
+                    const prompt = `Based on everything so far, generate 10 specific cards/prompts.
+                    IMPORTANT: DO NOT SUMMARIZE. Write detailed, comprehensive content for each card. 
+                    - 3 cards for "Voice of Customer" interviews (Full scripts/questions).
+                    - 3 cards for "Partnership Discussions" (Detailed value props and terms).
+                    - 3 cards for "Early Buyer" sales pitches (Full email/script drafts).
+                    - 1 Script outline for an On-Demand Webcast presenting the solution.
+                    
+                    Gap Analysis: ${projectData.gapAnalysis}`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Senior Content Strategist. Produce long-form, detailed deliverables.");
+                        setProjectData(prev => ({ ...prev, deckPrompts: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="h-full flex flex-col">
+                        {!projectData.deckPrompts && (
+                            <button onClick={generateContent} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Generating...' : 'Generate Deck Prompts'} <Icon name="presentation" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6">
+                            {projectData.deckPrompts ? (
+                                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.deckPrompts) }} />
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Create engagement materials for your stakeholders.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Step 8: Portal Prompt
+            const Step8 = () => {
+                 const generatePortal = async () => {
+                    setLoading(true);
+                    // Explicit instruction to not truncate
+                    const prompt = `Create a "Top-Notch" prompt for an AI tool like Lovable or Cursor to build a web portal for this solution.
+                    Include:
+                    - Tech stack (React, Tailwind, Supabase/Firebase)
+                    - Key Features defined in Gap Analysis
+                    - Design Aesthetic (modern, professional)
+                    - User flows
+                    
+                    IMPORTANT: Ensure you output the prompt for ALL PHASES (Phase 1, 2, 3, etc.). Do not stop early. Do not summarize. Provide the full prompt code.`;
+                    
+                    try {
+                        const response = await callGemini(apiKey, prompt, "You are a Senior Full Stack Architect. Provide complete, executable specifications.");
+                        setProjectData(prev => ({ ...prev, portalPrompt: response }));
+                    } catch (e) { alert(e.message); } finally { setLoading(false); }
+                };
+
+                const copyToClipboard = () => {
+                    navigator.clipboard.writeText(projectData.portalPrompt);
+                    alert("Copied to clipboard!");
+                };
+
+                return (
+                     <div className="h-full flex flex-col">
+                        {!projectData.portalPrompt && (
+                            <button onClick={generatePortal} disabled={loading} className="self-start bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded mb-4 flex items-center gap-2">
+                                {loading ? 'Architecting...' : 'Generate App Prompt'} <Icon name="code" size={16}/>
+                            </button>
+                        )}
+                        <div className="flex-1 overflow-y-auto glass-panel rounded-lg p-6 relative">
+                            {projectData.portalPrompt ? (
+                                <>
+                                    <button onClick={copyToClipboard} className="absolute top-4 right-4 bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded border border-slate-500">Copy Code</button>
+                                    <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(projectData.portalPrompt) }} />
+                                </>
+                            ) : (
+                                <div className="text-gray-500 text-center mt-20">Generate the master prompt to build your MVP.</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // --- Layout ---
+            if (!hasKey) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+                        <div className="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-700">
+                            <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                                <Icon name="cpu" className="text-blue-400"/> Pitch Architect
+                            </h1>
+                            <p className="text-slate-400 mb-6 text-sm">Enter your Google Gemini API Key to initialize your AI Strategy Partner.</p>
+                            <input 
+                                type="password" 
+                                placeholder="Gemini API Key" 
+                                className="w-full bg-slate-900 border border-slate-700 text-white px-4 py-2 rounded mb-4 focus:outline-none focus:border-blue-500"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                            />
+                            <button 
+                                onClick={() => { if(apiKey) setHasKey(true); }}
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-semibold transition-colors"
+                            >
+                                Initialize System
+                            </button>
+                            <p className="text-xs text-slate-500 mt-4 text-center">Key is stored only in browser memory.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex h-screen overflow-hidden bg-slate-900 text-slate-200">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col">
+                        <div className="p-6 border-b border-slate-800">
+                            <h1 className="font-bold text-xl text-white flex items-center gap-2">
+                                <Icon name="hexagon" className="text-blue-500"/> Architect
+                            </h1>
+                        </div>
+                        <nav className="flex-1 overflow-y-auto py-4">
+                            {STEPS.map((step) => (
+                                <button
+                                    key={step.id}
+                                    onClick={() => setCurrentStep(step.id)}
+                                    className={`w-full text-left px-6 py-3 flex items-center gap-3 transition-colors ${
+                                        currentStep === step.id 
+                                        ? 'bg-blue-900/30 text-blue-400 border-r-2 border-blue-400' 
+                                        : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                                    }`}
+                                >
+                                    <Icon name={step.icon} size={18} />
+                                    <span className="text-sm font-medium">{step.title}</span>
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 text-xs text-slate-600">
+                            v1.0.0 | Powered by Gemini
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 flex flex-col h-full relative">
+                        {/* Header */}
+                        <header className="h-16 border-b border-slate-800 flex items-center px-8 bg-slate-900/50 backdrop-blur justify-between">
+                            <h2 className="text-lg font-semibold text-white">
+                                {STEPS.find(s => s.id === currentStep)?.title}
+                            </h2>
+                            <div className="flex gap-2">
+                                {currentStep > 1 && (
+                                    <button onClick={() => setCurrentStep(c => c-1)} className="text-xs text-slate-400 hover:text-white px-3 py-1 rounded border border-slate-700">Back</button>
+                                )}
+                                {currentStep < 8 && (
+                                    <button onClick={() => setCurrentStep(c => c+1)} className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded">Next Step</button>
+                                )}
+                            </div>
+                        </header>
+
+                        {/* Workspace */}
+                        <main className="flex-1 overflow-hidden p-8">
+                            {currentStep === 1 && <Step1 />}
+                            {currentStep === 2 && <Step2 />}
+                            {currentStep === 3 && <Step3 />}
+                            {currentStep === 4 && <Step4 />}
+                            {currentStep === 5 && <Step5 />}
+                            {currentStep === 6 && <Step6 />}
+                            {currentStep === 7 && <Step7 />}
+                            {currentStep === 8 && <Step8 />}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
