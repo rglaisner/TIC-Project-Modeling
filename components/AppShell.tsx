@@ -268,7 +268,7 @@ export function AppShell() {
             </span>
           ))}
         </div>
-        <div style={{ padding: "0.5rem" }}>
+        <div className="sidebar-steps">
           {STEPS.map((step) => (
             <button
               key={step.id}
@@ -278,10 +278,10 @@ export function AppShell() {
               title={!canAccessStep(step.id) ? "Complete previous step first" : "Open step"}
             >
               <div className="step-topline">
-                <span>
+                <span className="step-title-text">
                   {step.id}. {step.title}
                 </span>
-                <span>{completedSteps.has(step.id) ? "Done" : ""}</span>
+                <span className="step-status-chip">{completedSteps.has(step.id) ? "Done" : ""}</span>
               </div>
               <div className="step-goal">{step.goal}</div>
             </button>
@@ -296,7 +296,7 @@ export function AppShell() {
       <main className="main">
         <header className="header">
           <div className="header-title-wrap">
-            <strong>{currentStepDefinition.title}</strong>
+            <h1 className="header-title">{currentStepDefinition.title}</h1>
             <div className="header-subtitle">
               {currentStepDefinition.phase} | {currentStepDefinition.goal}
             </div>
@@ -357,15 +357,15 @@ export function AppShell() {
           <div className="workspace-grid">
             <div>
               <div className="card trust-strip">
-                <div>
+                <div className="trust-item">
                   <div className="trust-label">Input Scope</div>
                   <strong>{Math.max(projectData.rawPitch.length, projectData.refinedPitch.length)} chars captured</strong>
                 </div>
-                <div>
+                <div className="trust-item">
                   <div className="trust-label">Generation Time</div>
                   <strong>{lastGeneratedAtByStep[currentStep] ?? "Not generated yet"}</strong>
                 </div>
-                <div>
+                <div className="trust-item">
                   <div className="trust-label">Review Status</div>
                   <strong>{confidenceLabel}</strong>
                 </div>
@@ -380,9 +380,9 @@ export function AppShell() {
                         <p className="card-helper">
                           Capture the internal project context, goals, and constraints in Talent/HR language.
                         </p>
-                        <div style={{ maxHeight: "350px", overflow: "auto", marginBottom: "0.7rem" }}>
+                        <div className="conversation-log">
                           {projectData.chatHistory.map((item, index) => (
-                            <div key={`${item.role}-${index}`} style={{ marginBottom: "0.5rem" }}>
+                            <div key={`${item.role}-${index}`} className="conversation-item">
                               <strong>{item.role}:</strong> {item.content}
                             </div>
                           ))}
@@ -394,7 +394,7 @@ export function AppShell() {
                           value={chatInput}
                           onChange={(event) => setChatInput(event.target.value)}
                         />
-                        <div style={{ marginTop: "0.7rem" }}>
+                        <div className="card-action-row">
                           <button
                             data-testid="pitch-submit"
                             className="btn primary"
@@ -414,20 +414,20 @@ export function AppShell() {
                     </div>
                   ) : (
                     <div className="card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                      <div className="card-header">
                         <div>
                           <h3>{currentStepDefinition.title}</h3>
                           <p className="card-helper">{currentStepDefinition.goal}</p>
                         </div>
                         <button
-                          className="btn success"
+                          className="btn primary"
                           onClick={() => void runStep(currentStep)}
                           disabled={geminiResource.loading}
                         >
                           {geminiResource.loading ? "Generating..." : "Generate Output"}
                         </button>
                       </div>
-                      <div style={{ marginTop: "0.8rem" }}>
+                      <div className="card-content">
                         {currentStep === 2 && (
                           <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.businessModel || "_No content yet_") }} />
                         )}
@@ -489,9 +489,9 @@ export function AppShell() {
               )}
 
               {(activeTab === "exports" || activeTab === "workflow") && (
-                <div className="card" style={{ marginTop: "1rem" }}>
+                <div className="card section-gap">
                   <h3>Portability And Session Controls</h3>
-                  <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
+                  <div className="utility-actions-row">
                     <button
                       data-testid="export-json"
                       className="btn secondary"

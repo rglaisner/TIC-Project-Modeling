@@ -29,17 +29,10 @@ export default function AccessPage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "1rem",
-      }}
-    >
-      <section className="card" style={{ width: "100%", maxWidth: "420px" }}>
-        <h1 style={{ marginTop: 0 }}>Secure Workspace Access</h1>
-        <p style={{ color: "var(--text-muted)" }}>
+    <main className="access-layout">
+      <section className="card access-card">
+        <h1 className="access-title">Secure Workspace Access</h1>
+        <p className="access-subtitle">
           Enter your shared passcode to open the initiative planning workspace.
         </p>
         <input
@@ -50,7 +43,7 @@ export default function AccessPage() {
           value={passcode}
           onChange={(event) => setPasscode(event.target.value)}
         />
-        <div style={{ marginTop: "0.75rem" }}>
+        <div className="card-action-row">
           <button
             data-testid="passcode-submit"
             className="btn primary"
@@ -60,10 +53,10 @@ export default function AccessPage() {
             {loading ? "Validating..." : "Enter Workspace"}
           </button>
         </div>
-        {error ? <div className="status-error" style={{ marginTop: "0.75rem" }}>{error}</div> : null}
-        <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "0.4rem", opacity: 0.7 }}>
+        {error ? <div className="status-error section-gap-sm">{error}</div> : null}
+        <div className="access-signature">
           <Image src="/assets/logo-rgd.png" alt="R.G. Development" width={42} height={20} />
-          <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Engineered by R.G. Development</span>
+          <span>Engineered by R.G. Development</span>
         </div>
       </section>
     </main>
