@@ -1,21 +1,21 @@
 :root {
-  --bg: #f4f7fb;
-  --bg-gradient-soft: #ecf3fb;
-  --surface: #ffffff;
-  --surface-soft: #f6f9fe;
-  --surface-strong: #ebf2fb;
-  --surface-elevated: #f2f7fd;
-  --surface-emphasis: #eef5ff;
-  --border: #d6e2f2;
-  --border-soft: #c5d7ec;
-  --text: #1a2b43;
-  --text-muted: #607690;
-  --text-soft: #415973;
-  --primary: #2c6bde;
-  --primary-soft: #1f56b9;
-  --primary-strong: #1a4ca8;
-  --success: #1f8f67;
-  --danger: #d04747;
+  --bg: #0f1724;
+  --bg-gradient-soft: #1a2638;
+  --surface: #131f31;
+  --surface-soft: #18253b;
+  --surface-strong: #0f1a2a;
+  --surface-elevated: #1b2b43;
+  --surface-emphasis: #203351;
+  --border: #2b3d58;
+  --border-soft: #37506f;
+  --text: #edf3ff;
+  --text-muted: #a8b7cf;
+  --text-soft: #c8d3e6;
+  --primary: #4f8cff;
+  --primary-soft: #3d74dc;
+  --primary-strong: #2f63cc;
+  --success: #1ea97b;
+  --danger: #eb6666;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -40,7 +40,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(circle at top left, #ffffff 0%, var(--bg-gradient-soft) 42%, var(--bg) 100%);
+  background: radial-gradient(circle at top left, #2a3a52 0%, var(--bg-gradient-soft) 34%, var(--bg) 100%);
   color: var(--text);
   font-family: "Segoe UI", Inter, sans-serif;
   line-height: 1.55;
@@ -187,7 +187,7 @@ textarea {
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: rgba(244, 247, 251, 0.9);
+  background: rgba(15, 23, 36, 0.86);
   backdrop-filter: blur(10px);
 }
 
@@ -226,7 +226,7 @@ textarea {
   background: var(--surface);
   border-radius: var(--radius-md);
   padding: var(--space-4);
-  box-shadow: 0 10px 24px rgba(51, 79, 119, 0.09);
+  box-shadow: 0 16px 30px rgba(5, 10, 18, 0.28);
 }
 
 .card h3 {
@@ -305,12 +305,12 @@ textarea {
 .btn.secondary {
   color: var(--text);
   border-color: var(--border-soft);
-  background: var(--surface);
+  background: var(--surface-soft);
 }
 
 .btn.success {
   color: white;
-  background: linear-gradient(180deg, var(--success) 0%, #0b9465 100%);
+  background: linear-gradient(180deg, var(--success) 0%, #16835f 100%);
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
 }
 
@@ -355,9 +355,9 @@ textarea:focus-visible,
 }
 
 .status-error {
-  border: 1px solid rgba(208, 71, 71, 0.35);
-  background: rgba(208, 71, 71, 0.08);
-  color: #7c2525;
+  border: 1px solid rgba(235, 102, 102, 0.35);
+  background: rgba(235, 102, 102, 0.12);
+  color: #ffd6d6;
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   font-size: 0.85rem;
@@ -452,7 +452,7 @@ textarea:focus-visible,
 
 .tab-button {
   border: 1px solid var(--border-soft);
-  background: var(--surface);
+  background: var(--surface-soft);
   color: var(--text-muted);
   border-radius: var(--radius-sm);
   padding: 0.52rem 0.86rem;
@@ -531,7 +531,7 @@ textarea:focus-visible,
   background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
-  box-shadow: 0 16px 34px rgba(41, 66, 102, 0.16);
+  box-shadow: 0 20px 34px rgba(4, 9, 17, 0.34);
   padding: 0.35rem;
   display: flex;
   flex-direction: column;
@@ -557,11 +557,11 @@ textarea:focus-visible,
 }
 
 .menu-item.danger {
-  color: #b33a3a;
+  color: #ff9b9b;
 }
 
 .menu-item.danger:hover {
-  background: rgba(208, 71, 71, 0.1);
+  background: rgba(235, 102, 102, 0.14);
 }
 
 .menu-file-input {
@@ -677,9 +677,6 @@ textarea:focus-visible,
   }
   .header-title {
     font-size: 1.08rem;
-  }
-  .utility-actions-row {
-    gap: var(--space-2);
   }
 }
 

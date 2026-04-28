@@ -20,7 +20,7 @@ interface GeminiResponse {
   text: string;
 }
 
-type WorkspaceTab = "workflow" | "insights" | "briefing" | "exports";
+type WorkspaceTab = "workflow" | "insights" | "briefing";
 
 const parseMarketParams = (raw: string): MarketParams | null => {
   const sanitized = raw.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -406,14 +406,6 @@ export function AppShell() {
               onClick={() => setActiveTab("briefing")}
             >
               Executive Brief
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === "exports"}
-              className={`tab-button ${activeTab === "exports" ? "active" : ""}`}
-              onClick={() => setActiveTab("exports")}
-            >
-              Exports
             </button>
           </div>
 
