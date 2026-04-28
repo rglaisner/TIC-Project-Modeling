@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -37,15 +38,15 @@ export default function AccessPage() {
       }}
     >
       <section className="card" style={{ width: "100%", maxWidth: "420px" }}>
-        <h1 style={{ marginTop: 0 }}>Secure Access</h1>
+        <h1 style={{ marginTop: 0 }}>Secure Workspace Access</h1>
         <p style={{ color: "var(--text-muted)" }}>
-          Enter the shared passcode to access this app instance.
+          Enter your shared passcode to open the initiative planning workspace.
         </p>
         <input
           data-testid="passcode-input"
           className="input"
           type="password"
-          placeholder="Passcode"
+          placeholder="Enter passcode"
           value={passcode}
           onChange={(event) => setPasscode(event.target.value)}
         />
@@ -56,10 +57,14 @@ export default function AccessPage() {
             onClick={() => void handleSubmit()}
             disabled={loading || !passcode.trim()}
           >
-            {loading ? "Validating..." : "Enter"}
+            {loading ? "Validating..." : "Enter Workspace"}
           </button>
         </div>
         {error ? <div className="status-error" style={{ marginTop: "0.75rem" }}>{error}</div> : null}
+        <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "0.4rem", opacity: 0.7 }}>
+          <Image src="/assets/logo-rgd.png" alt="R.G. Development" width={42} height={20} />
+          <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Engineered by R.G. Development</span>
+        </div>
       </section>
     </main>
   );

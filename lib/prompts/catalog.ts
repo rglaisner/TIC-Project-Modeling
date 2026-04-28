@@ -14,22 +14,22 @@ export const buildStepPrompt = (step: number, project: ProjectData, userInput?: 
       const latestInput = userInput ?? "";
       return {
         systemInstruction:
-          "You are an expert Product Strategist helping users clarify a pitch with concise, practical questions.",
+          "You are an expert Product Strategist helping Talent Intelligence and HR teams clarify initiative briefs with concise, practical questions.",
         prompt:
           `User input: ${latestInput}\n\nConversation so far:\n${context}\n\n` +
-          "Ask focused clarifying questions unless the pitch is clear enough to summarize into: problem, audience, outcome, and value.",
+          "Ask focused clarifying questions unless the brief is clear enough to summarize into: challenge, audience, expected outcome, and business value.",
       };
     }
     case 2:
       return {
-        systemInstruction: "You are a Chief Revenue Officer focused on practical and realistic monetization.",
+        systemInstruction: "You are a Talent Strategy leader focused on practical delivery and sustainable operating models.",
         prompt:
           `Analyze this pitch:\n${project.refinedPitch}\n\n` +
-          "Provide 3 viable business models, pros/cons for each, and a final recommendation.",
+          "Provide 3 viable rollout models, pros/cons for each, and a final recommendation.",
       };
     case 3:
       return {
-        systemInstruction: "You are an ecosystem strategist focused on stakeholders, incentives, and rollout.",
+        systemInstruction: "You are an ecosystem strategist focused on stakeholder alignment, incentives, and rollout readiness.",
         prompt:
           `Pitch:\n${project.refinedPitch}\n\nBusiness Model:\n${project.businessModel}\n\n` +
           "Map decision makers, users, champions, blockers, and partners, then provide an engagement plan by group.",
@@ -43,10 +43,10 @@ export const buildStepPrompt = (step: number, project: ProjectData, userInput?: 
       };
     case 5:
       return {
-        systemInstruction: "You are a product strategist and technical architect focused on pragmatic execution.",
+        systemInstruction: "You are a program strategist focused on pragmatic internal execution.",
         prompt:
           `Validation insights:\n${project.personas}\n\n` +
-          "Provide must-haves, phased implementation plan, and a clean technical build brief.",
+          "Provide must-haves, phased implementation plan, and a clear execution brief for leadership and delivery teams.",
       };
     case 6:
       return {
@@ -57,10 +57,10 @@ export const buildStepPrompt = (step: number, project: ProjectData, userInput?: 
       };
     case 7:
       return {
-        systemInstruction: "You are a senior content strategist producing detailed and practical assets.",
+        systemInstruction: "You are a senior communications strategist producing practical stakeholder assets.",
         prompt:
           `Gap analysis:\n${project.gapAnalysis}\n\n` +
-          "Produce 10 assets: 3 customer interview scripts, 3 partner discussion prompts, 3 early-buyer pitches, 1 webinar outline.",
+          "Produce 10 assets: 3 stakeholder interview scripts, 3 partner discussion prompts, 3 leadership-ready pitches, 1 town hall outline.",
       };
     case 8:
       return {

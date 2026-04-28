@@ -61,7 +61,7 @@ export function useProjectState(): UseProjectStateReturn {
   };
 
   const setCurrentStep = (step: number): void => {
-    setCurrentStepState(Math.max(1, Math.min(8, step)));
+    setCurrentStepState(Math.max(1, Math.min(STEPS.length, step)));
   };
 
   const resetAll = (): void => {

@@ -41,20 +41,22 @@ export const parseState = (raw: string): PersistedEnvelope | null => {
 
 export const toMarkdownExport = (projectData: ProjectData): string => {
   const sections: Array<{ title: string; value: string }> = [
-    { title: "Refined Pitch", value: projectData.refinedPitch },
-    { title: "Business Model", value: projectData.businessModel },
-    { title: "Ecosystem", value: projectData.ecosystem },
-    { title: "Persona Simulation", value: projectData.personas },
-    { title: "Gap Analysis", value: projectData.gapAnalysis },
+    { title: "Refined Initiative Brief", value: projectData.refinedPitch },
+    { title: "Operating Model Options", value: projectData.businessModel },
+    { title: "Stakeholder Ecosystem", value: projectData.ecosystem },
+    { title: "Talent Persona Simulation", value: projectData.personas },
+    { title: "Readiness Gap Analysis", value: projectData.gapAnalysis },
     {
-      title: "Market Parameters",
+      title: "Market And Adoption Parameters",
       value: projectData.marketParams ? JSON.stringify(projectData.marketParams, null, 2) : "",
     },
-    { title: "Deck Prompts", value: projectData.deckPrompts },
-    { title: "Portal Prompt", value: projectData.portalPrompt },
+    { title: "Briefing Asset Kit", value: projectData.deckPrompts },
+    { title: "Execution Prompt Package", value: projectData.portalPrompt },
   ];
 
-  return sections
+  const content = sections
     .map(({ title, value }) => `## ${title}\n\n${value.trim().length > 0 ? value : "_No content yet_"}\n`)
     .join("\n");
+
+  return `${content}\n---\n_Engineered by R.G. Development_\n`;
 };

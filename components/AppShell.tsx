@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { marked } from "marked";
 import { STEPS } from "@/lib/core/steps";
 import { toMarkdownExport, serializeState, parseState } from "@/lib/persistence/storage";
 import { useProfile } from "@/hooks/useProfile";
 import { useProjectState } from "@/hooks/useProjectState";
 import { useResources } from "@/hooks/useResources";
-import { initialProjectData, type MarketParams } from "@/types/project";
+import { initialProjectData, type MarketParams, type ProjectData } from "@/types/project";
 
 interface GeminiPayload {
   step: number;
@@ -18,6 +19,8 @@ interface GeminiPayload {
 interface GeminiResponse {
   text: string;
 }
+
+type WorkspaceTab = "workflow" | "insights" | "briefing" | "exports";
 
 const parseMarketParams = (raw: string): MarketParams | null => {
   const sanitized = raw.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -61,6 +64,14 @@ export function AppShell() {
   const { currentStep, setCurrentStep, projectData, setProjectData, canAccessStep, completedSteps, resetAll } =
     useProjectState();
   const [chatInput, setChatInput] = useState("");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("workflow");
+  const [lastGeneratedAtByStep, setLastGeneratedAtByStep] = useState<Partial<Record<number, string>>>({});
+  const [reviewChecks, setReviewChecks] = useState({
+    clarity: false,
+    alignment: false,
+    risks: false,
+    ownership: false,
+  });
 
   const geminiResource = useResources<GeminiResponse, GeminiPayload>(async (payload) => {
     const response = await fetch("/api/gemini", {
@@ -80,6 +91,45 @@ export function AppShell() {
     [currentStep]
   );
 
+  const confidenceScore = useMemo(() => Math.round((completedSteps.size / STEPS.length) * 100), [completedSteps.size]);
+  const confidenceLabel =
+    confidenceScore >= 85 ? "High confidence" : confidenceScore >= 60 ? "Moderate confidence" : "Early draft";
+
+  const nextIncompleteStep = useMemo(() => STEPS.find((step) => !completedSteps.has(step.id))?.id, [completedSteps]);
+
+  const getStepValue = (stepId: number, data: ProjectData): string => {
+    const step = STEPS.find((item) => item.id === stepId);
+    if (!step) return "";
+    if (step.id === 6) {
+      return data.marketParams ? JSON.stringify(data.marketParams, null, 2) : "";
+    }
+    const value = data[step.key as keyof ProjectData];
+    return typeof value === "string" ? value : "";
+  };
+
+  const createExecutiveBrief = (): string => {
+    const lines = [
+      `### Initiative Summary`,
+      projectData.refinedPitch || "_No summary yet_",
+      ``,
+      `### Delivery Model Recommendation`,
+      projectData.businessModel || "_No recommendation yet_",
+      ``,
+      `### Stakeholder Dynamics`,
+      projectData.ecosystem || "_No ecosystem assessment yet_",
+      ``,
+      `### Readiness And Risk Gaps`,
+      projectData.gapAnalysis || "_No risk analysis yet_",
+      ``,
+      `### Delivery Assets`,
+      projectData.deckPrompts || "_No delivery assets yet_",
+      ``,
+      `### Execution Prompt`,
+      projectData.portalPrompt || "_No execution prompt yet_",
+    ];
+    return lines.join("\n");
+  };
+
   const runStep = async (stepId: number): Promise<void> => {
     const data = await geminiResource.execute({ step: stepId, projectData });
     if (!data) return;
@@ -96,6 +146,7 @@ export function AppShell() {
     }
     if (stepId === 7) setProjectData((current) => ({ ...current, deckPrompts: data.text }));
     if (stepId === 8) setProjectData((current) => ({ ...current, portalPrompt: data.text }));
+    setLastGeneratedAtByStep((current) => ({ ...current, [stepId]: new Date().toISOString() }));
   };
 
   const onChatSend = async (): Promise<void> => {
@@ -122,6 +173,7 @@ export function AppShell() {
       refinedPitch: data.text,
       chatHistory: [...current.chatHistory, { role: "assistant", content: data.text }],
     }));
+    setLastGeneratedAtByStep((current) => ({ ...current, 1: new Date().toISOString() }));
   };
 
   const downloadFile = (filename: string, content: string, mimeType: string): void => {
@@ -149,10 +201,73 @@ export function AppShell() {
     reader.readAsText(file);
   };
 
+  const clearCurrentStep = (): void => {
+    const stepId = currentStep;
+    setProjectData((current) => {
+      if (stepId === 1) {
+        return { ...current, rawPitch: "", refinedPitch: "", chatHistory: [] };
+      }
+      if (stepId === 6) {
+        return { ...current, marketParams: null };
+      }
+      const step = STEPS.find((item) => item.id === stepId);
+      if (!step) return current;
+      return { ...current, [step.key]: "" };
+    });
+    setLastGeneratedAtByStep((current) => ({ ...current, [stepId]: undefined }));
+  };
+
+  const duplicateInitiative = (): void => {
+    const snapshot = serializeState({ currentStep, projectData });
+    const timestamp = new Date().toISOString().replaceAll(":", "-");
+    downloadFile(`initiative-copy-${timestamp}.json`, snapshot, "application/json");
+  };
+
+  const copyCurrentSection = async (): Promise<void> => {
+    const sectionText = getStepValue(currentStep, projectData);
+    if (!sectionText.trim()) return;
+    if (!navigator.clipboard) return;
+    await navigator.clipboard.writeText(sectionText);
+  };
+
+  const jumpToNextIncomplete = (): void => {
+    if (nextIncompleteStep) {
+      setCurrentStep(nextIncompleteStep);
+      setActiveTab("workflow");
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!event.altKey) return;
+      if (event.key === "ArrowLeft") {
+        setCurrentStep(currentStep - 1);
+      }
+      if (event.key === "ArrowRight") {
+        setCurrentStep(currentStep + 1);
+      }
+      if (event.key.toLowerCase() === "j") {
+        jumpToNextIncomplete();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [currentStep, nextIncompleteStep, setCurrentStep]);
+
+  const briefingMarkdown = createExecutiveBrief();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-title">{profile.appName}</div>
+        <div className="sidebar-subtitle">Talent Intelligence Workspace</div>
+        <div className="sidebar-phase-row">
+          {Array.from(new Set(STEPS.map((step) => step.phase))).map((phase) => (
+            <span key={phase} className="phase-chip">
+              {phase}
+            </span>
+          ))}
+        </div>
         <div style={{ padding: "0.5rem" }}>
           {STEPS.map((step) => (
             <button
@@ -162,21 +277,37 @@ export function AppShell() {
               disabled={!canAccessStep(step.id)}
               title={!canAccessStep(step.id) ? "Complete previous step first" : "Open step"}
             >
-              {step.id}. {step.title} {completedSteps.has(step.id) ? " - done" : ""}
+              <div className="step-topline">
+                <span>
+                  {step.id}. {step.title}
+                </span>
+                <span>{completedSteps.has(step.id) ? "Done" : ""}</span>
+              </div>
+              <div className="step-goal">{step.goal}</div>
             </button>
           ))}
+        </div>
+        <div className="sidebar-signature">
+          <Image src="/assets/logo-rgd.png" alt="R.G. Development" width={56} height={28} />
+          <span>Engineered by R.G. Development</span>
         </div>
       </aside>
 
       <main className="main">
         <header className="header">
-          <div>
+          <div className="header-title-wrap">
             <strong>{currentStepDefinition.title}</strong>
-            <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-              Standalone mode ready | Integration profile: {profile.appId}
+            <div className="header-subtitle">
+              {currentStepDefinition.phase} | {currentStepDefinition.goal}
+            </div>
+            <div className="header-subtitle">
+              Integration profile: {profile.appId}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div className="header-actions">
+            <button className="btn ghost" onClick={jumpToNextIncomplete} disabled={!nextIncompleteStep}>
+              Jump To Next Incomplete
+            </button>
             <button className="btn secondary" onClick={() => setCurrentStep(currentStep - 1)} disabled={currentStep <= 1}>
               Back
             </button>
@@ -187,114 +318,287 @@ export function AppShell() {
         </header>
 
         <section className="workspace">
+          <div className="tab-row" role="tablist" aria-label="Workspace views">
+            <button
+              role="tab"
+              aria-selected={activeTab === "workflow"}
+              className={`tab-button ${activeTab === "workflow" ? "active" : ""}`}
+              onClick={() => setActiveTab("workflow")}
+            >
+              Workflow
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "insights"}
+              className={`tab-button ${activeTab === "insights" ? "active" : ""}`}
+              onClick={() => setActiveTab("insights")}
+            >
+              Insights
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "briefing"}
+              className={`tab-button ${activeTab === "briefing" ? "active" : ""}`}
+              onClick={() => setActiveTab("briefing")}
+            >
+              Executive Brief
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "exports"}
+              className={`tab-button ${activeTab === "exports" ? "active" : ""}`}
+              onClick={() => setActiveTab("exports")}
+            >
+              Exports
+            </button>
+          </div>
+
           {geminiResource.error ? <div className="status-error">{geminiResource.error}</div> : null}
+          <div className="workspace-grid">
+            <div>
+              <div className="card trust-strip">
+                <div>
+                  <div className="trust-label">Input Scope</div>
+                  <strong>{Math.max(projectData.rawPitch.length, projectData.refinedPitch.length)} chars captured</strong>
+                </div>
+                <div>
+                  <div className="trust-label">Generation Time</div>
+                  <strong>{lastGeneratedAtByStep[currentStep] ?? "Not generated yet"}</strong>
+                </div>
+                <div>
+                  <div className="trust-label">Review Status</div>
+                  <strong>{confidenceLabel}</strong>
+                </div>
+              </div>
 
-          {currentStep === 1 ? (
-            <div className="split">
-              <div className="card">
-                <h3>Conversation</h3>
-                <div style={{ maxHeight: "350px", overflow: "auto", marginBottom: "0.7rem" }}>
-                  {projectData.chatHistory.map((item, index) => (
-                    <div key={`${item.role}-${index}`} style={{ marginBottom: "0.5rem" }}>
-                      <strong>{item.role}:</strong> {item.content}
+              {activeTab === "workflow" && (
+                <>
+                  {currentStep === 1 ? (
+                    <div className="split">
+                      <div className="card">
+                        <h3>Initiative Conversation</h3>
+                        <p className="card-helper">
+                          Capture the internal project context, goals, and constraints in Talent/HR language.
+                        </p>
+                        <div style={{ maxHeight: "350px", overflow: "auto", marginBottom: "0.7rem" }}>
+                          {projectData.chatHistory.map((item, index) => (
+                            <div key={`${item.role}-${index}`} style={{ marginBottom: "0.5rem" }}>
+                              <strong>{item.role}:</strong> {item.content}
+                            </div>
+                          ))}
+                        </div>
+                        <textarea
+                          data-testid="pitch-input"
+                          className="textarea"
+                          placeholder="Describe the initiative, who it serves, and what change you need."
+                          value={chatInput}
+                          onChange={(event) => setChatInput(event.target.value)}
+                        />
+                        <div style={{ marginTop: "0.7rem" }}>
+                          <button
+                            data-testid="pitch-submit"
+                            className="btn primary"
+                            onClick={onChatSend}
+                            disabled={geminiResource.loading}
+                          >
+                            {geminiResource.loading ? "Thinking..." : "Refine Initiative"}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="card">
+                        <h3>Refined Initiative Brief</h3>
+                        <div
+                          dangerouslySetInnerHTML={{ __html: marked.parse(projectData.refinedPitch || "_No brief yet_") }}
+                        />
+                      </div>
                     </div>
-                  ))}
-                </div>
-                <textarea
-                  data-testid="pitch-input"
-                  className="textarea"
-                  placeholder="Describe your idea and what problem it solves."
-                  value={chatInput}
-                  onChange={(event) => setChatInput(event.target.value)}
-                />
-                <div style={{ marginTop: "0.7rem" }}>
-                  <button data-testid="pitch-submit" className="btn primary" onClick={onChatSend} disabled={geminiResource.loading}>
-                    {geminiResource.loading ? "Thinking..." : "Send"}
-                  </button>
-                </div>
-              </div>
-              <div className="card">
-                <h3>Refined Pitch</h3>
-                <div
-                  dangerouslySetInnerHTML={{ __html: marked.parse(projectData.refinedPitch || "_No pitch yet_") }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3>{currentStepDefinition.title}</h3>
-                <button className="btn success" onClick={() => void runStep(currentStep)} disabled={geminiResource.loading}>
-                  {geminiResource.loading ? "Generating..." : "Generate"}
-                </button>
-              </div>
-              <div style={{ marginTop: "0.8rem" }}>
-                {currentStep === 2 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.businessModel || "_No content yet_") }} />
-                )}
-                {currentStep === 3 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.ecosystem || "_No content yet_") }} />
-                )}
-                {currentStep === 4 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.personas || "_No content yet_") }} />
-                )}
-                {currentStep === 5 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.gapAnalysis || "_No content yet_") }} />
-                )}
-                {currentStep === 6 && (
-                  <pre>{projectData.marketParams ? JSON.stringify(projectData.marketParams, null, 2) : "No simulation data yet."}</pre>
-                )}
-                {currentStep === 7 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.deckPrompts || "_No content yet_") }} />
-                )}
-                {currentStep === 8 && (
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.portalPrompt || "_No content yet_") }} />
-                )}
-              </div>
-            </div>
-          )}
+                  ) : (
+                    <div className="card">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                        <div>
+                          <h3>{currentStepDefinition.title}</h3>
+                          <p className="card-helper">{currentStepDefinition.goal}</p>
+                        </div>
+                        <button
+                          className="btn success"
+                          onClick={() => void runStep(currentStep)}
+                          disabled={geminiResource.loading}
+                        >
+                          {geminiResource.loading ? "Generating..." : "Generate Output"}
+                        </button>
+                      </div>
+                      <div style={{ marginTop: "0.8rem" }}>
+                        {currentStep === 2 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.businessModel || "_No content yet_") }} />
+                        )}
+                        {currentStep === 3 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.ecosystem || "_No content yet_") }} />
+                        )}
+                        {currentStep === 4 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.personas || "_No content yet_") }} />
+                        )}
+                        {currentStep === 5 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.gapAnalysis || "_No content yet_") }} />
+                        )}
+                        {currentStep === 6 && (
+                          <pre>{projectData.marketParams ? JSON.stringify(projectData.marketParams, null, 2) : "No simulation data yet."}</pre>
+                        )}
+                        {currentStep === 7 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.deckPrompts || "_No content yet_") }} />
+                        )}
+                        {currentStep === 8 && (
+                          <div dangerouslySetInnerHTML={{ __html: marked.parse(projectData.portalPrompt || "_No content yet_") }} />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
-          <div className="card" style={{ marginTop: "1rem" }}>
-            <h3>Persistence and Portability</h3>
-            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
-              <button
-                data-testid="export-json"
-                className="btn secondary"
-                onClick={() =>
-                  downloadFile(
-                    "pitch-architect-export.json",
-                    serializeState({ currentStep, projectData }),
-                    "application/json"
-                  )
-                }
-              >
-                Export JSON
-              </button>
-              <button
-                data-testid="export-md"
-                className="btn secondary"
-                onClick={() =>
-                  downloadFile("pitch-architect-report.md", toMarkdownExport(projectData), "text/markdown")
-                }
-              >
-                Export Markdown
-              </button>
-              <label data-testid="import-json" className="btn secondary">
-                Import JSON
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  style={{ display: "none" }}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) importState(file);
-                  }}
-                />
-              </label>
-              <button className="btn secondary" onClick={resetAll}>
-                Reset Session
-              </button>
+              {activeTab === "insights" && (
+                <div className="card">
+                  <h3>Initiative Insights</h3>
+                  <p className="card-helper">Scan completed outputs quickly and jump back to improve quality.</p>
+                  <div className="insights-grid">
+                    {STEPS.map((step) => (
+                      <button
+                        key={step.id}
+                        className="insight-card"
+                        disabled={!canAccessStep(step.id)}
+                        onClick={() => {
+                          setCurrentStep(step.id);
+                          setActiveTab("workflow");
+                        }}
+                      >
+                        <strong>
+                          {step.id}. {step.title}
+                        </strong>
+                        <span>{completedSteps.has(step.id) ? "Ready" : "Incomplete"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "briefing" && (
+                <div className="card">
+                  <h3>Executive Briefing Draft</h3>
+                  <p className="card-helper">Use this for leadership alignment before final exports.</p>
+                  <div dangerouslySetInnerHTML={{ __html: marked.parse(briefingMarkdown) }} />
+                </div>
+              )}
+
+              {(activeTab === "exports" || activeTab === "workflow") && (
+                <div className="card" style={{ marginTop: "1rem" }}>
+                  <h3>Portability And Session Controls</h3>
+                  <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
+                    <button
+                      data-testid="export-json"
+                      className="btn secondary"
+                      onClick={() =>
+                        downloadFile(
+                          "pitch-architect-export.json",
+                          serializeState({ currentStep, projectData }),
+                          "application/json"
+                        )
+                      }
+                    >
+                      Export JSON
+                    </button>
+                    <button
+                      data-testid="export-md"
+                      className="btn secondary"
+                      onClick={() =>
+                        downloadFile("pitch-architect-report.md", toMarkdownExport(projectData), "text/markdown")
+                      }
+                    >
+                      Export Markdown
+                    </button>
+                    <label data-testid="import-json" className="btn secondary">
+                      Import JSON
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        style={{ display: "none" }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) importState(file);
+                        }}
+                      />
+                    </label>
+                    <button className="btn secondary" onClick={duplicateInitiative}>
+                      Duplicate Initiative
+                    </button>
+                    <button className="btn secondary" onClick={clearCurrentStep}>
+                      Reset Current Step
+                    </button>
+                    <button className="btn secondary" onClick={() => void copyCurrentSection()}>
+                      Copy Current Section
+                    </button>
+                    <button className="btn secondary" onClick={resetAll}>
+                      Reset Session
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            <aside className="summary-rail">
+              <div className="card summary-rail-card">
+                <h3>Session Summary</h3>
+                <div className="summary-metric">
+                  <span>Completion</span>
+                  <strong>{confidenceScore}%</strong>
+                </div>
+                <div className="summary-progress">
+                  <div style={{ width: `${confidenceScore}%` }} />
+                </div>
+                <div className="summary-metric">
+                  <span>Next Focus</span>
+                  <strong>
+                    {nextIncompleteStep
+                      ? `${nextIncompleteStep}. ${STEPS.find((step) => step.id === nextIncompleteStep)?.title ?? "Pending"}`
+                      : "All steps complete"}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="card summary-rail-card">
+                <h3>Review Checklist</h3>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={reviewChecks.clarity}
+                    onChange={(event) => setReviewChecks((current) => ({ ...current, clarity: event.target.checked }))}
+                  />
+                  Clarity verified
+                </label>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={reviewChecks.alignment}
+                    onChange={(event) => setReviewChecks((current) => ({ ...current, alignment: event.target.checked }))}
+                  />
+                  Stakeholder alignment confirmed
+                </label>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={reviewChecks.risks}
+                    onChange={(event) => setReviewChecks((current) => ({ ...current, risks: event.target.checked }))}
+                  />
+                  Risks acknowledged
+                </label>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={reviewChecks.ownership}
+                    onChange={(event) => setReviewChecks((current) => ({ ...current, ownership: event.target.checked }))}
+                  />
+                  Owner and next actions set
+                </label>
+              </div>
+            </aside>
           </div>
         </section>
       </main>
