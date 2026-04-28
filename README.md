@@ -7,6 +7,7 @@ This app is now structured as a standalone Next.js + TypeScript project that can
 Set these in Vercel Project Settings or `.env.local`:
 
 - `GEMINI_API_KEY`: server-side Gemini key used by `/api/gemini`.
+- `GEMINI_MODEL`: Gemini model ID used by `/api/gemini` (default: `gemini-2.5-flash`).
 - `APP_ACCESS_PASSCODE`: shared passcode for simple free access control.
 - `SESSION_SECRET`: reserved for future session signing upgrades.
 

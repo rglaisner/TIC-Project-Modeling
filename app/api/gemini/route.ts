@@ -37,6 +37,10 @@ const requestSchema = z.object({
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    const geminiModel =
+      process.env.GEMINI_MODEL && process.env.GEMINI_MODEL.trim().length > 0
+        ? process.env.GEMINI_MODEL.trim()
+        : "gemini-2.5-flash";
     if (!geminiApiKey) {
       return NextResponse.json({ error: "GEMINI_API_KEY is not configured." }, { status: 500 });
     }
@@ -58,7 +62,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     };
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${geminiApiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
