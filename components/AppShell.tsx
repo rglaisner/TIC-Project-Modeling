@@ -66,12 +66,7 @@ export function AppShell() {
   const [chatInput, setChatInput] = useState("");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("workflow");
   const [lastGeneratedAtByStep, setLastGeneratedAtByStep] = useState<Partial<Record<number, string>>>({});
-  const [reviewChecks, setReviewChecks] = useState({
-    clarity: false,
-    alignment: false,
-    risks: false,
-    ownership: false,
-  });
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
 
   const geminiResource = useResources<GeminiResponse, GeminiPayload>(async (payload) => {
     const response = await fetch("/api/gemini", {
@@ -254,6 +249,14 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [currentStep, nextIncompleteStep, setCurrentStep]);
 
+  useEffect(() => {
+    const onWindowClick = (): void => {
+      setIsFileMenuOpen(false);
+    };
+    window.addEventListener("click", onWindowClick);
+    return () => window.removeEventListener("click", onWindowClick);
+  }, []);
+
   const briefingMarkdown = createExecutiveBrief();
 
   return (
@@ -305,6 +308,67 @@ export function AppShell() {
             </div>
           </div>
           <div className="header-actions">
+            <div className="menu-wrap">
+              <button
+                className="btn secondary"
+                aria-haspopup="menu"
+                aria-expanded={isFileMenuOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsFileMenuOpen((current) => !current);
+                }}
+              >
+                File
+              </button>
+              {isFileMenuOpen ? (
+                <div className="menu-dropdown" role="menu" onClick={(event) => event.stopPropagation()}>
+                  <button
+                    data-testid="export-json"
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() =>
+                      downloadFile(
+                        "pitch-architect-export.json",
+                        serializeState({ currentStep, projectData }),
+                        "application/json"
+                      )
+                    }
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    data-testid="export-md"
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() => downloadFile("pitch-architect-report.md", toMarkdownExport(projectData), "text/markdown")}
+                  >
+                    Export Markdown
+                  </button>
+                  <label data-testid="import-json" className="menu-item menu-file-input" role="menuitem">
+                    Import JSON
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) importState(file);
+                        setIsFileMenuOpen(false);
+                      }}
+                    />
+                  </label>
+                  <button className="menu-item" role="menuitem" onClick={duplicateInitiative}>
+                    Duplicate Initiative
+                  </button>
+                  <button className="menu-item" role="menuitem" onClick={clearCurrentStep}>
+                    Reset Current Step
+                  </button>
+                  <button className="menu-item danger" role="menuitem" onClick={resetAll}>
+                    Reset Session
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <button className="btn ghost" onClick={jumpToNextIncomplete} disabled={!nextIncompleteStep}>
               Jump To Next Incomplete
             </button>
@@ -374,8 +438,8 @@ export function AppShell() {
               {activeTab === "workflow" && (
                 <>
                   {currentStep === 1 ? (
-                    <div className="split">
-                      <div className="card">
+                    <div className="stack">
+                      <div className="card hero-card">
                         <h3>Initiative Conversation</h3>
                         <p className="card-helper">
                           Capture the internal project context, goals, and constraints in Talent/HR language.
@@ -487,60 +551,6 @@ export function AppShell() {
                   <div dangerouslySetInnerHTML={{ __html: marked.parse(briefingMarkdown) }} />
                 </div>
               )}
-
-              {(activeTab === "exports" || activeTab === "workflow") && (
-                <div className="card section-gap">
-                  <h3>Portability And Session Controls</h3>
-                  <div className="utility-actions-row">
-                    <button
-                      data-testid="export-json"
-                      className="btn secondary"
-                      onClick={() =>
-                        downloadFile(
-                          "pitch-architect-export.json",
-                          serializeState({ currentStep, projectData }),
-                          "application/json"
-                        )
-                      }
-                    >
-                      Export JSON
-                    </button>
-                    <button
-                      data-testid="export-md"
-                      className="btn secondary"
-                      onClick={() =>
-                        downloadFile("pitch-architect-report.md", toMarkdownExport(projectData), "text/markdown")
-                      }
-                    >
-                      Export Markdown
-                    </button>
-                    <label data-testid="import-json" className="btn secondary">
-                      Import JSON
-                      <input
-                        type="file"
-                        accept=".json,application/json"
-                        style={{ display: "none" }}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) importState(file);
-                        }}
-                      />
-                    </label>
-                    <button className="btn secondary" onClick={duplicateInitiative}>
-                      Duplicate Initiative
-                    </button>
-                    <button className="btn secondary" onClick={clearCurrentStep}>
-                      Reset Current Step
-                    </button>
-                    <button className="btn secondary" onClick={() => void copyCurrentSection()}>
-                      Copy Current Section
-                    </button>
-                    <button className="btn secondary" onClick={resetAll}>
-                      Reset Session
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             <aside className="summary-rail">
@@ -561,42 +571,11 @@ export function AppShell() {
                       : "All steps complete"}
                   </strong>
                 </div>
-              </div>
-
-              <div className="card summary-rail-card">
-                <h3>Review Checklist</h3>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={reviewChecks.clarity}
-                    onChange={(event) => setReviewChecks((current) => ({ ...current, clarity: event.target.checked }))}
-                  />
-                  Clarity verified
-                </label>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={reviewChecks.alignment}
-                    onChange={(event) => setReviewChecks((current) => ({ ...current, alignment: event.target.checked }))}
-                  />
-                  Stakeholder alignment confirmed
-                </label>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={reviewChecks.risks}
-                    onChange={(event) => setReviewChecks((current) => ({ ...current, risks: event.target.checked }))}
-                  />
-                  Risks acknowledged
-                </label>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={reviewChecks.ownership}
-                    onChange={(event) => setReviewChecks((current) => ({ ...current, ownership: event.target.checked }))}
-                  />
-                  Owner and next actions set
-                </label>
+                <div className="card-action-row">
+                  <button className="btn secondary" onClick={() => void copyCurrentSection()}>
+                    Copy Current Section
+                  </button>
+                </div>
               </div>
             </aside>
           </div>
