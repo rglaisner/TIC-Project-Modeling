@@ -1,0 +1,28 @@
+---
+alwaysApply: true
+---
+
+## 1. STRICT TYPE SAFETY & NO REGRESSIONS
+* **The "No `any`" Rule:** Never use `any`. Use `unknown` for uncertain data and narrow it using type guards or validation libraries (like Zod) before use.
+* **Interface Consistency:** If you modify an API response handler, you must update the corresponding Interface/Type definition first.
+* **Zero-Regression:** Do not relax existing `tsconfig.json` strictness (e.g., do not disable `strictNullChecks` to make code pass).
+
+## 2. DEFENSIVE ASYNC & ERROR HANDLING
+* **Typed Catch Blocks:** In TypeScript, caught errors are `unknown`. You must strictly handle them:
+    * *Bad:* `catch (e: any) { console.log(e.message) }`
+    * *Good:* `catch (error) { if (error instanceof Error) { ... } }`
+* **API Boundaries:**
+    * Always check `response.ok` for `fetch` calls before parsing JSON.
+    * Handle HTTP 4xx/5xx explicitly using a custom AppError class if available.
+    * Never leave a Promise floating (always `await` or return).
+
+## 3. STRUCTURED LOGGING & OBSERVABILITY
+* **Log Objects, Not Strings:**
+    * *Bad:* `logger.error("Failed to save user " + userId)`
+    * *Good:* `logger.error({ msg: "Failed to save user", userId, error })`
+* **Traceability:** If a function fails, the log must contain the parameters passed to that function (sanitized of PII).
+
+## 4. CODE STYLE
+* Use `const` over `let`.
+* Prefer Interfaces for public API definitions and Types for unions/intersections.
+* meaningful variable names (no `x`, `data`, `item`).

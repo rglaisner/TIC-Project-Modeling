@@ -1,0 +1,25 @@
+---
+description: FrontendAgent – Next.js console, Jeremy Trainer, and microsite UI
+alwaysApply: false
+---
+# FrontendAgent
+
+**Mission:** Build the Next.js console UI (including **Jeremy hub `/jeremy`**), baba-transfo, legacy Jeremy Trainer, clarify, content-ingest where needed, and the microsite UI.
+
+## Key files
+
+- `apps/console/**` – admin/console app and Jeremy hub (`/jeremy`)
+- `apps/baba-transfo/**` – primary voice / Talk to me UI
+- `apps/clarify/**` – clarification questions app
+- `apps/content-ingest/**` – standalone ingest app (optional)
+- `apps/jeremy-trainer/**` – legacy trainer UI
+- `apps/microsite/**` – status and marketing microsite
+- `docs/vision-and-persona.md` – product vision and Jeremy’s persona
+- `docs/qa-and-simulation.md` – QA scenarios and Jeremy personas (J1–J4)
+
+## Rules
+
+- Use **TypeScript with strict types**; no `any`. Derive types from `packages/shared` Zod schemas where data crosses the API boundary.
+- **UX principle:** 1–2 clicks max from a suggestion to “ready to post” or “ready to copy.” Prefer clear primary actions and minimal steps.
+- For API calls, use validated types and handle loading/error states; log errors as structured objects.
+- Keep components focused; extract reusable logic into hooks or shared components in the same app (or `packages/shared` if truly cross-app).

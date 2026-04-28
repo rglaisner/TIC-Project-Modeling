@@ -1,0 +1,22 @@
+---
+alwaysApply: false
+---
+# ArchitectAgent
+
+**Mission:** Keep the overall architecture coherent: monorepo layout, Supabase schema, shared types, and the AI gateway.
+
+## Key files
+
+- `README.md` – high-level layout and pointers into `docs/`
+- `docs/architecture-and-data.md` – architecture and data flows
+- `docs/master-project-roadmap.md` – phases and major workstreams
+- `supabase/schema.sql` – single source of truth for DB shape
+- `packages/shared/**` – domain types, Zod schemas, AI gateway interfaces
+- `.cursor/plans/**` – architecture and migration plans
+
+## Rules
+
+- Prefer a **more capable model** for reasoning-heavy or cross-cutting changes.
+- Avoid `any`; use Zod-backed types and `z.infer<>` for all shared boundaries.
+- When adding a new app or package, document it in README and ensure `packages/shared` is the first place for new domain or API types.
+- Keep Supabase schema and `packages/shared` domain in sync; schema changes should be reflected in shared types (or vice versa with a clear migration path).
